@@ -4,7 +4,7 @@ set -ex
 
 SCRIPTPATH="$( cd "$(dirname "$0")" ; pwd -P ))"
 
-export TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
+export TORCH_NVCC_FLAGS="-Xfatbin -compress-all -compress-mode=size"
 export NCCL_ROOT_DIR=/usr/local/cuda
 export TH_BINARY_BUILD=1
 export USE_STATIC_CUDNN=1
@@ -56,13 +56,13 @@ EXTRA_CAFFE2_CMAKE_FLAGS+=("-DATEN_NO_TEST=ON")
 case ${CUDA_VERSION} in
     #removing sm_50-sm_70 as these architectures are deprecated in CUDA 12.8/9 and will be removed in future releases
     12.8)
-        TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0;10.0;12.0"
+        TORCH_CUDA_ARCH_LIST="6.0;7.0;7.5;8.0;8.6;9.0;10.0;12.0"
         ;;
     12.9)
-        TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;9.0;10.0;12.0+PTX"
+        TORCH_CUDA_ARCH_LIST="6.0;7.0;7.5;8.0;8.6;9.0;10.0;12.0+PTX"
         # WAR to resolve the ld error in libtorch build with CUDA 12.9
         if [[ "$PACKAGE_TYPE" == "libtorch" ]]; then
-            TORCH_CUDA_ARCH_LIST="7.5;8.0;9.0;10.0;12.0+PTX"
+            TORCH_CUDA_ARCH_LIST="6.0;7.0;7.5;8.0;9.0;10.0;12.0+PTX"
         fi
         ;;
     12.6)
@@ -113,7 +113,7 @@ DEPS_SONAME=(
 if [[ $CUDA_VERSION == 12* ]]; then
     export USE_STATIC_CUDNN=0
     # Try parallelizing nvcc as well
-    export TORCH_NVCC_FLAGS="-Xfatbin -compress-all --threads 2"
+    export TORCH_NVCC_FLAGS="-Xfatbin -compress-all -compress-mode=size --threads 2"
     if [[ -z "$PYTORCH_EXTRA_INSTALL_REQUIREMENTS" ]]; then
         echo "Bundling with cudnn and cublas."
         DEPS_LIST+=(
