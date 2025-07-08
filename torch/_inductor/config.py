@@ -1412,6 +1412,9 @@ class aot_inductor:
     # custom op libs that have implemented C shim wrappers
     custom_op_libs: Optional[list[str]] = None
 
+    # Whether to enable link-time-optimization
+    enable_lto = os.environ.get("AOT_INDUCTOR_ENABLE_LTO", "0") == "1"
+
 
 class cuda:
     """Settings for cuda backend, today this consists of cutlass"""
