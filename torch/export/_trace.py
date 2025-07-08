@@ -1553,8 +1553,8 @@ def _export_to_aten_ir_make_fx(
     def _make_fx_helper(mod, args, kwargs, **flags):
         kwargs = kwargs or {}
 
-        named_parameters = dict(mod.named_parameters(remove_duplicate=False))
-        named_buffers = dict(mod.named_buffers(remove_duplicate=False))
+        named_parameters = dict(mod.named_parameters())
+        named_buffers = dict(mod.named_buffers())
 
         params_and_buffers = {**named_parameters, **named_buffers}
         params_and_buffers_flat, params_spec = pytree.tree_flatten(params_and_buffers)
@@ -1725,6 +1725,7 @@ def _export_to_aten_ir_make_fx(
             gm.graph.eliminate_dead_code(_is_impure)
 
         # create graph signature
+        assert out_spec.spec is not None, "out_spec.spec is None!"
         input_names = _graph_input_names(gm)
         output_names = _graph_output_names(gm)
         sig = GraphSignature(
@@ -1739,7 +1740,7 @@ def _export_to_aten_ir_make_fx(
             buffers_to_mutate={},
             user_inputs_to_mutate={},
             in_spec=in_spec,
-            out_spec=out_spec,  # type: ignore[arg-type]
+            out_spec=out_spec.spec,
             backward_signature=None,
             input_tokens=[],
             output_tokens=[],
