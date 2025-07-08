@@ -62,6 +62,7 @@ from torch._dynamo.utils import clone_inputs, counters, same
 from torch._environment import is_fbcode
 from torch._inductor.output_code import OutputCode
 from torch._library.fake_class_registry import FakeScriptObject
+from torch._ops import OpOverload
 from torch.fx.experimental.proxy_tensor import make_fx
 from torch.fx.experimental.symbolic_shapes import (
     fx_placeholder_targets,
@@ -381,6 +382,14 @@ def save_graph_repro(
         )
         return
 
+    # Check if the graph contains distributed operations
+    has_distributed_ops = any(
+        node.op == "call_function"
+        and isinstance(node.target, OpOverload)
+        and node.target.namespace in {"_c10d_functional", "c10d_functional"}
+        for node in gm.graph.nodes
+    )
+
     fd.write(
         generate_compiler_repro_string(
             gm,
@@ -398,12 +407,40 @@ def save_graph_repro(
             has_free_symbols(a) for a in args if not isinstance(a, FakeScriptObject)
         ):
             tracing_mode = "symbolic"
+    # Add distributed imports if needed
+    if has_distributed_ops:
+        fd.write(
+            "import torch.distributed as dist\n"
+            "from torch.testing._internal.distributed.fake_pg import FakeStore\n"
+        )
+
     fd.write("if __name__ == '__main__':\n")
     fd.write("    from torch._dynamo.repro.after_aot import run_repro\n")
+
+    # Add distributed initialization before run_repro
+    if has_distributed_ops:
+        fd.write(
+            "    # Initialize FakeProcessGroup for distributed operations\n"
+            "    store = FakeStore()\n"
+            "    dist.init_process_group(\n"
+            '        backend="fake",\n'
+            "        rank=0,\n"
+            "        world_size=2,\n"
+            "        store=store\n"
+            "    )\n"
+        )
+
     fd.write(
         f"    with torch.no_grad():\n"
         f"        run_repro(mod, load_args, accuracy={accuracy!r}, command={command!r}, "
         f"save_dir={save_dir!r}, tracing_mode={tracing_mode!r}, check_str={check_str!r})\n"
+    )
+
+    # Add distributed cleanup after run_repro
+    if has_distributed_ops:
+        fd.write("dist.destroy_process_group()\n")
+
+    fd.write(
         f"        # To run it separately, do \n"
         f"        # mod, args = run_repro(mod, load_args, accuracy={accuracy!r}, command='get_args', "
         f"save_dir={save_dir!r}, tracing_mode={tracing_mode!r}, check_str={check_str!r})\n"
